@@ -1,0 +1,89 @@
+clc;
+clear;
+close all;
+
+%% 读取数据
+str = "\total_precipitation_2021.nc";
+str1 = "\2m_temperature_2021.nc";
+ncdisp(str1)
+longitude = ncread(str,'longitude');
+latitude = ncread(str,'latitude');
+tp = ncread(str,'tp').*1000;%单位转mm
+t2m = ncread(str1,'t2m')-273.15;%转摄氏度
+
+%% 提取数据
+for i = 1:size(tp,3)/24
+    tp_data(:,:,i) = sum(tp(:,:,((i-1)*24+1):24*i),3);%日降水
+    tmin_data(:,:,i) = min(t2m(:,:,((i-1)*24+1):24*i),[],3);%最低气温
+    tmax_data(:,:,i) = max(t2m(:,:,((i-1)*24+1):24*i),[],3);%最高气温
+end
+a = tp_data(:,:,1);
+
+%% 写入nc
+startDate = datetime(2022, 1, 1);
+endDate = datetime(2022, 12, 31);
+time_all = (startDate:endDate)';
+t1 = (datenum(time_all)-datenum(1900, 1, 1, 0, 0, 0))*24;
+date = t1;
+
+nc = netcdf.create(['data_2022', '.nc'], 'clobber');
+netcdf.putAtt(nc,netcdf.getConstant('NC_GLOBAL'),'Conventions','CF-1.0')
+netcdf.putAtt(nc,netcdf.getConstant('NC_GLOBAL'),'history',['File created on ', datestr(now, 'yyyy-mm-dd HH:MM:SS')])
+
+% 维度
+long_dimid=netcdf.defDim(nc,'longitude',length(longitude));
+lat_dimid=netcdf.defDim(nc,'latitude',length(latitude));
+time_dimid=netcdf.defDim(nc,'time',length(date));
+
+% 空间
+long_varid=netcdf.defVar(nc,'longitude','NC_FLOAT',long_dimid);
+netcdf.putAtt(nc,long_varid,'units','degrees_east');
+netcdf.putAtt(nc,long_varid,'long_name','longitude');
+
+lat_varid=netcdf.defVar(nc,'latitude','NC_FLOAT',lat_dimid);
+netcdf.putAtt(nc,lat_varid,'units','degrees_north');
+netcdf.putAtt(nc,lat_varid,'long_name','latitude');
+
+% 时间
+% 时间变量
+time_varid=netcdf.defVar(nc,'time','NC_FLOAT',time_dimid);
+netcdf.putAtt(nc,time_varid,'long_name','time');
+netcdf.putAtt(nc,time_varid,'units','hours since 1900-01-01 00:00:0.0');
+netcdf.putAtt(nc,time_varid,'calendar','gregorian');
+
+% 定义每个变量维度
+tp_varid=netcdf.defVar(nc,'tp','NC_FLOAT',[long_dimid,lat_dimid,time_dimid]);
+netcdf.putAtt(nc,tp_varid,'long_name','Total precipitation');
+netcdf.putAtt(nc,tp_varid,'units','mm');
+
+tmin_varid=netcdf.defVar(nc,'tmin','NC_FLOAT',[long_dimid,lat_dimid,time_dimid]);
+netcdf.putAtt(nc,tmin_varid,'long_name','min temperature');
+netcdf.putAtt(nc,tmin_varid,'units','℃');
+
+tmax_varid=netcdf.defVar(nc,'tmax','NC_FLOAT',[long_dimid,lat_dimid,time_dimid]);
+netcdf.putAtt(nc,tmax_varid,'long_name','max temperature');
+netcdf.putAtt(nc,tmax_varid,'units','℃');
+
+netcdf.endDef(nc);
+
+% 写入
+netcdf.putVar(nc,time_varid,date);
+netcdf.putVar(nc,long_varid,longitude);
+netcdf.putVar(nc,lat_varid,latitude);
+netcdf.putVar(nc,tp_varid,tp_data);
+netcdf.putVar(nc,tmin_varid,tmin_data);
+netcdf.putVar(nc,tmax_varid,tmax_data);
+netcdf.close(nc);
+
+%% 
+ncdisp("data_2021.nc")
+
+
+
+
+
+
+
+
+
+
